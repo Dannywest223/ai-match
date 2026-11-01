@@ -4,55 +4,70 @@ import { X, Sparkles, LogIn, UserPlus, LayoutDashboard, ArrowRight } from "lucid
 import { useAuth } from "../context/AuthContext";
 
 export function WelcomeModal() {
-  const { user } = useAuth(); 
+  const auth = useAuth();
+  const user = auth?.user; // Safe access in case auth is still loading
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // 1. Check if they already saw the modal today
-    const lastSeen = localStorage.getItem("arrows_last_welcome");
-    const today = new Date().toDateString(); 
+    // 1. Get today's date
+    const today = new Date().toDateString(); // e.g., "Sat Nov 01 2026"
+    
+    // 2. Check localStorage safely
+    let lastSeen = null;
+    try {
+      lastSeen = localStorage.getItem("arrows_last_welcome");
+    } catch (e) {
+      console.warn("LocalStorage is blocked by the browser.");
+    }
 
-    // 2. If they haven't seen it today, show it
+    // 3. Show modal if they haven't seen it today
     if (lastSeen !== today) {
-      const timer = setTimeout(() => setIsOpen(true), 1500);
+      const timer = setTimeout(() => setIsOpen(true), 1200); // 1.2s delay for smooth load
       return () => clearTimeout(timer);
     }
-  }, []); // Removed `user` from dependency array so it only checks on mount
+  }, []);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem("arrows_last_welcome", new Date().toDateString());
+    try {
+      localStorage.setItem("arrows_last_welcome", new Date().toDateString());
+    } catch (e) {
+      // Ignore if browser blocks local storage
+    }
   };
 
   if (!isOpen) return null;
 
-  // Try to grab the user's name or email prefix for a personal touch
+  // Safely get the user's name
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "there";
   
-  // Determine where the dashboard button should link to
+  // Safely get the user's role for the dashboard link
   const role = user?.user_metadata?.role || "student"; 
   const dashboardLink = `/dashboard/${role}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+      
       <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white dark:bg-gray-900 shadow-2xl ring-1 ring-black/5 dark:ring-white/10 animate-in zoom-in-95 duration-500 delay-150">
         
-        {/* Decorative background blob */}
-        <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl" />
+        {/* Decorative background glow */}
+        <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
         
+        {/* Close Button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 z-10 rounded-full p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          className="absolute top-4 right-4 z-10 rounded-full p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none"
+          aria-label="Close"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <div className="p-8">
+        <div className="p-8 relative z-0">
           <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
             <Sparkles className="h-7 w-7" />
           </div>
 
-          {/* === LOGGED IN STATE === */}
+          {/* ================= LOGGED IN STATE ================= */}
           {user ? (
             <>
               <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white capitalize">
@@ -85,7 +100,7 @@ export function WelcomeModal() {
               </div>
             </>
           ) : (
-            /* === GUEST STATE (Not Logged In) === */
+            /* ================= GUEST STATE ================= */
             <>
               <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
                 Welcome to Arrows AI
@@ -119,9 +134,9 @@ export function WelcomeModal() {
           
           <button
             onClick={handleClose}
-            className="mt-6 w-full text-center text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            className="mt-6 w-full text-center text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
           >
-            Maybe later
+            Maybe later, just browsing
           </button>
         </div>
       </div>
