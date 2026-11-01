@@ -4,25 +4,25 @@ import { X, Sparkles, LogIn, UserPlus, LayoutDashboard, ArrowRight } from "lucid
 import { useAuth } from "../context/AuthContext";
 
 export function WelcomeModal() {
+  // Safe access to auth in case the provider is still loading
   const auth = useAuth();
-  const user = auth?.user; // Safe access in case auth is still loading
+  const user = auth?.user; 
+  
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // 1. Get today's date
-    const today = new Date().toDateString(); // e.g., "Sat Nov 01 2026"
-    
-    // 2. Check localStorage safely
+    const today = new Date().toDateString(); 
     let lastSeen = null;
+    
     try {
       lastSeen = localStorage.getItem("arrows_last_welcome");
     } catch (e) {
-      console.warn("LocalStorage is blocked by the browser.");
+      // Ignore local storage errors (e.g., incognito mode strict rules)
     }
 
-    // 3. Show modal if they haven't seen it today
     if (lastSeen !== today) {
-      const timer = setTimeout(() => setIsOpen(true), 1200); // 1.2s delay for smooth load
+      // Slight delay for a smoother page load experience
+      const timer = setTimeout(() => setIsOpen(true), 1500);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -32,21 +32,19 @@ export function WelcomeModal() {
     try {
       localStorage.setItem("arrows_last_welcome", new Date().toDateString());
     } catch (e) {
-      // Ignore if browser blocks local storage
+      // Ignore
     }
   };
 
   if (!isOpen) return null;
 
-  // Safely get the user's name
+  // Extract user info safely
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "there";
-  
-  // Safely get the user's role for the dashboard link
   const role = user?.user_metadata?.role || "student"; 
   const dashboardLink = `/dashboard/${role}`;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
       
       <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white dark:bg-gray-900 shadow-2xl ring-1 ring-black/5 dark:ring-white/10 animate-in zoom-in-95 duration-500 delay-150">
         
