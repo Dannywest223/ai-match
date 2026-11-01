@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, UserPlus, X } from "lucide-react";
+import { Sparkles, UserPlus } from "lucide-react";
 import { StatCard } from "../components/StatCard";
 import { StudentRow, type Student } from "../components/StudentRow";
 import { CommissionCard } from "../components/CommissionCard";
