@@ -26,7 +26,16 @@ export function Matches() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Filters>({ country: "All", budget: "All", intake: "All", tags: [] });
+  
+  // 1. Added `level: "All"` to initial state
+  const [filters, setFilters] = useState<Filters>({ 
+    country: "All", 
+    budget: "All", 
+    intake: "All", 
+    level: "All", 
+    tags: [] 
+  });
+  
   const [saved, setSaved] = useState<Set<string | number>>(new Set());
   const [applied, setApplied] = useState<Set<string | number>>(new Set());
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -156,6 +165,7 @@ export function Matches() {
           duolingo: duolingo,
           documents: documents,
           tags: tags,
+          level: prog["Course_Level"], // 2. Added Course_Level to match object
         };
       };
 
@@ -211,6 +221,19 @@ export function Matches() {
         if (filters.budget === "$20k–$30k" && (fee < 20000 || fee > 30000)) return false;
         if (filters.budget === "$30k+" && fee <= 30000) return false;
       }
+
+      // 3. Course Level Filter (Maps DB values to UG/PG/Diploma)
+      if (filters.level && filters.level !== "All") {
+        const rawLevel = (m.level || "").toLowerCase();
+        let mappedLevel = "Other";
+        
+        if (["undergraduate", "bachelor", "associate"].includes(rawLevel)) mappedLevel = "UG";
+        else if (["postgraduate", "master", "doctorate", "specialist"].includes(rawLevel)) mappedLevel = "PG";
+        else if (rawLevel === "diploma") mappedLevel = "Diploma";
+
+        if (mappedLevel !== filters.level) return false;
+      }
+
       // Tag filter: every selected tag must be present on the program
       if (filters.tags.length > 0) {
         if (!m.tags) return false;

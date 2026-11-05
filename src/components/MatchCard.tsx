@@ -23,8 +23,8 @@ export type Match = {
   campus?: string;
   duration?: string;
   website?: string;
-  // NEW: spec filter tags
   tags?: string[];
+  level?: string; // NEW: Added level to the type
 };
 
 export function MatchCard({
@@ -36,6 +36,19 @@ export function MatchCard({
   onApply?: (m: Match) => void;
   onSave?: (m: Match) => void;
 }) {
+  
+  // Helper to map the raw DB level to the clean UG/PG/Diploma format
+  const getMappedLevel = (rawLevel?: string) => {
+    if (!rawLevel) return null;
+    const l = rawLevel.toLowerCase();
+    if (["undergraduate", "bachelor", "associate"].includes(l)) return "Undergraduate";
+    if (["postgraduate", "master", "doctorate", "specialist"].includes(l)) return "Postgraduate";
+    if (l === "diploma") return "Diploma";
+    return rawLevel; // Fallback to original string
+  };
+
+  const displayLevel = getMappedLevel(match.level);
+
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-md transition">
       <div className="flex items-start gap-5">
@@ -48,6 +61,16 @@ export function MatchCard({
           <p className="text-blue-600 dark:text-blue-400 font-medium mt-1 text-lg">
             {match.program}
           </p>
+
+          {/* NEW: Course Level Badge */}
+          {displayLevel && (
+            <div className="mt-2.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20">
+                <GraduationCap size={14} className="shrink-0" />
+                {displayLevel}
+              </span>
+            </div>
+          )}
           
           <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 text-sm text-gray-600 dark:text-gray-400">
             <span className="flex items-center gap-1.5"><MapPin size={16} /> {match.campus || match.country}</span>
@@ -60,7 +83,7 @@ export function MatchCard({
 
       {/* Tags */}
       {match.tags && match.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-3">
+        <div className="flex flex-wrap gap-2 mt-4">
           {match.tags.map((tag) => (
             <span key={tag} className="text-xs px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
               {tag}
@@ -143,17 +166,6 @@ export function MatchCard({
         >
           Save
         </button>
-        
-        {match.website && (
-          <a
-            href={match.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-blue-600 text-blue-600 px-6 py-2.5 text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 transition ml-auto"
-          >
-            Visit Website ↗
-          </a>
-        )}
       </div>
     </div>
   );
