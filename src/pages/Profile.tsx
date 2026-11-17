@@ -34,13 +34,16 @@ export function Profile() {
     edu_country: "", edu_level: "", edu_grading_scheme: "", edu_grade_scale: "",
     edu_grade_average: "", english_exam: "IELTS", exam_date: "",
     listening_score: "", reading_score: "", writing_score: "", speaking_score: "",
-    documents: {}, // Required docs
-    additional_documents: [] // Extra uploaded docs
+    documents: {}, 
+    additional_documents: [] 
   });
 
   useEffect(() => {
-    if (!user) return;
-    const userId = user.id; // Capture user.id to satisfy TypeScript
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    const userId = user.id;
 
     async function fetchProfile() {
       const { data, error } = await supabase
@@ -64,7 +67,8 @@ export function Profile() {
         
         setFormData({ ...formData, ...formattedData });
       } else if (!error || error.code === "PGRST116") {
-        setFormData((prev: any) => ({ ...prev, email: user.email || "" }));
+        // Fixed: user is optional chained
+        setFormData((prev: any) => ({ ...prev, email: user?.email || "" }));
       }
       setLoading(false);
     }
