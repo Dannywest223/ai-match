@@ -2,8 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { 
-  User, BookOpen, Award, FileText, CheckCircle2, 
-  AlertCircle, Save, UploadCloud, Info, X, File, Trash2, Plus
+  FileText, CheckCircle2, AlertCircle, Save, 
+  UploadCloud, Info, File, Trash2 
 } from "lucide-react";
 
 // Standard required documents
@@ -40,11 +40,13 @@ export function Profile() {
 
   useEffect(() => {
     if (!user) return;
+    const userId = user.id; // Capture user.id to satisfy TypeScript
+
     async function fetchProfile() {
       const { data, error } = await supabase
         .from("student_profiles")
         .select("*")
-        .eq("id", user.id)
+        .eq("id", userId)
         .single();
 
       if (data) {
@@ -81,6 +83,7 @@ export function Profile() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docId: string) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+    const userId = user.id;
 
     const maxSizeMB = parseInt(REQUIRED_DOCUMENTS.find(d => d.id === docId)?.maxSize || "10");
     if (file.size > maxSizeMB * 1024 * 1024) {
@@ -89,7 +92,7 @@ export function Profile() {
     }
 
     setUploadingDoc(docId);
-    const filePath = `${user.id}/${docId}-${Date.now()}-${file.name}`;
+    const filePath = `${userId}/${docId}-${Date.now()}-${file.name}`;
 
     const { error: uploadError } = await supabase.storage
       .from("student-documents")
@@ -116,6 +119,7 @@ export function Profile() {
   const handleExtraUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
+    const userId = user.id;
 
     setUploadingDoc("extra");
     const newDocs = [...(formData.additional_documents || [])];
@@ -126,9 +130,8 @@ export function Profile() {
         continue;
       }
 
-      // Auto-rename file to avoid weird characters: e.g., "supporting-doc-12345.pdf"
       const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
-      const filePath = `${user.id}/extra-${Date.now()}-${cleanFileName}`;
+      const filePath = `${userId}/extra-${Date.now()}-${cleanFileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("student-documents")
@@ -163,9 +166,10 @@ export function Profile() {
 
   const handleSave = async () => {
     if (!user) return;
+    const userId = user.id;
     setSaving(true);
     
-    const dataToSave = { ...formData, id: user.id };
+    const dataToSave = { ...formData, id: userId };
     if (!dataToSave.date_of_birth) dataToSave.date_of_birth = null;
     if (!dataToSave.passport_expiry) dataToSave.passport_expiry = null;
     if (!dataToSave.exam_date) dataToSave.exam_date = null;
@@ -218,7 +222,7 @@ export function Profile() {
         </div>
       </div>
 
-      {/* Smart Vault (Only visible on Personal Tab to save space) */}
+      {/* Smart Vault */}
       {activeTab === "personal" && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 md:p-8 mb-8 shadow-sm">
           <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">Smart Document Vault</h2>
