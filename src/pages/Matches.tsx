@@ -27,18 +27,105 @@ export function Matches() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // 1. Added `level: "All"` to initial state
   const [filters, setFilters] = useState<Filters>({ 
-    country: "All", 
-    budget: "All", 
-    intake: "All", 
-    level: "All", 
-    tags: [] 
+    country: "All", budget: "All", intake: "All", level: "All", tags: [] 
   });
   
   const [saved, setSaved] = useState<Set<string | number>>(new Set());
   const [applied, setApplied] = useState<Set<string | number>>(new Set());
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
+  // 1. Accept fetched data as parameters to avoid React state closure issues
+  const scoreProgram = (prog: any, profile: Profile | null, insts: any[], reqs: any[], fees: any[]) => {
+    const progId = normalize(prog["Program_ID"]);
+    const instId = normalize(prog["Institution_ID"]);
+
+    const inst = insts.find(i => normalize(i["Institution_ID"]) === instId);
+    const req = reqs.find(r => normalize(r["Program_ID"]) === progId);
+    const fee = fees.find(f => normalize(f["Program_ID"]) === progId);
+    
+    const academicReq = req ? (req["Academic_Requirement_Summary"] || "Contact university") : "Contact university";
+    const minGpa = req ? (req["Minimum_GPA/Grade"] || "") : "";
+    const prereqs = req ? (req["Subject_Prerequisites"] || "") : "";
+    const englishTest = req ? (req["English_Test_Accepted"] || "IELTS / TOEFL") : "IELTS / TOEFL";
+    const ielts = req ? (req["IELTS_Minimum"] || "") : "";
+    const toefl = req ? (req["TOEFL_iBT_Minimum"] || "") : "";
+    const pte = req ? (req["PTE_Minimum"] || "") : "";
+    const duolingo = req ? (req["Duolingo_Minimum"] || "") : "";
+    const documents = req ? (req["Documents_Required"] || "Transcripts, Passport") : "Transcripts, Passport";
+
+    // ORIGINAL TUITION LOGIC RESTORED
+    const realFee = fee ? parseInt(fee["Tuition_Fee_Amount"], 10) : 0;
+    const currency = fee ? (fee["Currency"] || "$") : "$";
+    const feeString = realFee > 0 ? `${currency}${realFee.toLocaleString()}/yr` : "N/A";
+
+    let score = 75; 
+    let reasons = [];
+
+    if (profile) {
+      const studentGPA = parseFloat(profile.grades) || 0;
+
+      if (studentGPA > 0 && minGpa) {
+        const reqGradeMatch = String(minGpa).match(/\d+(\.\d+)?/);
+        const reqGrade = reqGradeMatch ? parseFloat(reqGradeMatch[0]) : 0;
+        const isPercentage = String(minGpa).includes("%");
+        const studentGradeToCompare = isPercentage ? (studentGPA * 25) : studentGPA;
+
+        if (studentGradeToCompare >= reqGrade) {
+          score += 15;
+          reasons.push(`Your grades meet the ${minGpa} requirement.`);
+        } else {
+          score -= 50;
+        }
+      }
+
+      if (profile.budget && fee) {
+        if (profile.budget === "Under $15,000" && realFee <= 15000) score += 10;
+        else if (profile.budget === "$15,000 - $25,000" && realFee > 15000 && realFee <= 25000) score += 10;
+        else if (profile.budget === "$25,000 - $35,000" && realFee > 25000 && realFee <= 35000) score += 10;
+        else if (profile.budget === "$35,000+" && realFee > 35000) score += 10;
+        else score -= 50;
+      }
+    }
+
+    const tags: string[] = [];
+    if (prog["loan_available"]) tags.push("Loan Available");
+    if (prog["fast_acceptance"]) tags.push("Fast Acceptance");
+    if (prog["high_job_demand"]) tags.push("High Job Demand");
+    if (prog["incentivized"]) tags.push("Incentivized");
+    if (prog["instant_offer"]) tags.push("Instant Offer");
+    if (prog["instant_submission"]) tags.push("Instant Submission");
+    if (prog["no_uk_interview"]) tags.push("No UK Interview");
+    if (prog["popular"]) tags.push("Popular");
+    if (prog["prime"]) tags.push("Prime");
+    if (prog["top"]) tags.push("Top");
+
+    return {
+      id: prog.id || prog["Program_ID"] || Math.random().toString(),
+      university: inst ? inst["Institution_Name"] : "Partner University",
+      program: prog["Course/Program_Title"] || "Degree Program",
+      country: inst ? inst["Country/Region"] : "International",
+      score: Math.min(score, 99),
+      reason: reasons.join(" ") || "This program aligns with your preferences.",
+      intake: prog["Start_Months/Intakes"] || "Sep 2025",
+      tuition: feeString,
+      description: prog["Short_Description_30_60_words"] || "",
+      campus: prog["Campus/Location"] || "",
+      duration: prog["Duration"] || "",
+      website: inst ? inst["Official_Website_URL"] : "",
+      academicReq: academicReq,
+      minGpa: minGpa,
+      prerequisites: prereqs,
+      englishTest: englishTest,
+      ielts: ielts,
+      toefl: toefl,
+      pte: pte,
+      duolingo: duolingo,
+      documents: documents,
+      tags: tags,
+      level: prog["Course_Level"],
+    };
+  };
 
   useEffect(() => {
     async function fetchInitialData() {
@@ -67,6 +154,13 @@ export function Matches() {
       const uniqueCourses = Array.from(new Set(progs.map(p => p["Course/Program_Title"]).filter(Boolean))).sort() as string[];
       setCoursesList(uniqueCourses);
 
+      // 2. Use the fetched data directly in the initial score calculation
+      const initialMatches = progs
+        .map(p => scoreProgram(p, null, insts, reqs, fees))
+        .filter(p => p.score > 0)
+        .sort((a, b) => b.score - a.score);
+        
+      setMatches(initialMatches);
       setLoading(false);
     }
     fetchInitialData();
@@ -79,95 +173,6 @@ export function Matches() {
     try {
       const searchProgram = profile.course.toLowerCase().trim();
       const searchCountry = profile.country.toLowerCase().trim();
-      const studentGPA = parseFloat(profile.grades) || 0;
-
-      const scoreProgram = (prog: any) => {
-        const progId = normalize(prog["Program_ID"]);
-        const instId = normalize(prog["Institution_ID"]);
-
-        const inst = allInstitutions.find(i => normalize(i["Institution_ID"]) === instId);
-        
-        const req = allRequirements.find(r => normalize(r["Program_ID"]) === progId);
-        const fee = allFees.find(f => normalize(f["Program_ID"]) === progId);
-        
-        const academicReq = req ? (req["Academic_Requirement_Summary"] || "Contact university") : "Contact university";
-        const minGpa = req ? (req["Minimum_GPA/Grade"] || "") : "";
-        const prereqs = req ? (req["Subject_Prerequisites"] || "") : "";
-        const englishTest = req ? (req["English_Test_Accepted"] || "IELTS / TOEFL") : "IELTS / TOEFL";
-        const ielts = req ? (req["IELTS_Minimum"] || "") : "";
-        const toefl = req ? (req["TOEFL_iBT_Minimum"] || "") : "";
-        const pte = req ? (req["PTE_Minimum"] || "") : "";
-        const duolingo = req ? (req["Duolingo_Minimum"] || "") : "";
-        const documents = req ? (req["Documents_Required"] || "Transcripts, Passport") : "Transcripts, Passport";
-
-        const realFee = fee ? parseInt(fee["Tuition_Fee_Amount"], 10) : 0;
-        const currency = fee ? (fee["Currency"] || "$") : "$";
-        const feeString = realFee > 0 ? `${currency}${realFee.toLocaleString()}/yr` : "N/A";
-
-        let score = 75; 
-        let reasons = [];
-
-        if (studentGPA > 0 && minGpa) {
-          const reqGradeMatch = String(minGpa).match(/\d+(\.\d+)?/);
-          const reqGrade = reqGradeMatch ? parseFloat(reqGradeMatch[0]) : 0;
-          const isPercentage = String(minGpa).includes("%");
-          const studentGradeToCompare = isPercentage ? (studentGPA * 25) : studentGPA;
-
-          if (studentGradeToCompare >= reqGrade) {
-            score += 15;
-            reasons.push(`Your grades meet the ${minGpa} requirement.`);
-          } else {
-            score -= 50;
-          }
-        }
-
-        if (profile.budget && fee) {
-          if (profile.budget === "Under $15,000" && realFee <= 15000) score += 10;
-          else if (profile.budget === "$15,000 - $25,000" && realFee > 15000 && realFee <= 25000) score += 10;
-          else if (profile.budget === "$25,000 - $35,000" && realFee > 25000 && realFee <= 35000) score += 10;
-          else if (profile.budget === "$35,000+" && realFee > 35000) score += 10;
-          else score -= 50;
-        }
-
-        // Build tag list from program flags
-        const tags: string[] = [];
-        if (prog["loan_available"]) tags.push("Loan Available");
-        if (prog["fast_acceptance"]) tags.push("Fast Acceptance");
-        if (prog["high_job_demand"]) tags.push("High Job Demand");
-        if (prog["incentivized"]) tags.push("Incentivized");
-        if (prog["instant_offer"]) tags.push("Instant Offer");
-        if (prog["instant_submission"]) tags.push("Instant Submission");
-        if (prog["no_uk_interview"]) tags.push("No UK Interview");
-        if (prog["popular"]) tags.push("Popular");
-        if (prog["prime"]) tags.push("Prime");
-        if (prog["top"]) tags.push("Top");
-
-        return {
-          id: prog.id || prog["Program_ID"] || Math.random().toString(),
-          university: inst ? inst["Institution_Name"] : "Partner University",
-          program: prog["Course/Program_Title"] || "Degree Program",
-          country: inst ? inst["Country/Region"] : "International",
-          score: Math.min(score, 99),
-          reason: reasons.join(" ") || "This program aligns with your preferences.",
-          intake: prog["Start_Months/Intakes"] || "Sep 2025",
-          tuition: feeString,
-          description: prog["Short_Description_30_60_words"] || "",
-          campus: prog["Campus/Location"] || "",
-          duration: prog["Duration"] || "",
-          website: inst ? inst["Official_Website_URL"] : "",
-          academicReq: academicReq,
-          minGpa: minGpa,
-          prerequisites: prereqs,
-          englishTest: englishTest,
-          ielts: ielts,
-          toefl: toefl,
-          pte: pte,
-          duolingo: duolingo,
-          documents: documents,
-          tags: tags,
-          level: prog["Course_Level"], // 2. Added Course_Level to match object
-        };
-      };
 
       let filtered = allPrograms;
       if (searchProgram) {
@@ -180,7 +185,9 @@ export function Matches() {
         });
       }
 
-      let formatted = filtered.map(scoreProgram).filter(p => p.score > 0);
+      let formatted = filtered
+        .map(p => scoreProgram(p, profile, allInstitutions, allRequirements, allFees))
+        .filter(p => p.score > 0);
 
       if (formatted.length === 0) {
         let fallback = allPrograms;
@@ -191,7 +198,11 @@ export function Matches() {
           fallback = allPrograms.slice(0, 10);
         }
 
-        const fallbackFormatted = fallback.map(scoreProgram).sort((a, b) => b.score - a.score).slice(0, 5);
+        const fallbackFormatted = fallback
+          .map(p => scoreProgram(p, profile, allInstitutions, allRequirements, allFees))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+          
         setError(`We couldn't find an exact match for your strict criteria. However, here are some similar top programs.`);
         setMatches(fallbackFormatted);
       } else {
@@ -222,7 +233,6 @@ export function Matches() {
         if (filters.budget === "$30k+" && fee <= 30000) return false;
       }
 
-      // 3. Course Level Filter (Maps DB values to UG/PG/Diploma)
       if (filters.level && filters.level !== "All") {
         const rawLevel = (m.level || "").toLowerCase();
         let mappedLevel = "Other";
@@ -234,7 +244,6 @@ export function Matches() {
         if (mappedLevel !== filters.level) return false;
       }
 
-      // Tag filter: every selected tag must be present on the program
       if (filters.tags.length > 0) {
         if (!m.tags) return false;
         for (const t of filters.tags) {
@@ -245,38 +254,88 @@ export function Matches() {
     });
   }, [matches, filters]);
 
+  const recommendedMatches = useMemo(() => finalFiltered.slice(0, 4), [finalFiltered]);
+  const morePrograms = useMemo(() => [...finalFiltered.slice(4)].sort(() => Math.random() - 0.5), [finalFiltered]);
+
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
+    <div className="max-w-7xl mx-auto px-6 py-10">
       <h1 className="text-3xl font-bold mb-2">Get your matches</h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-8">Browse all available programs or search for your dream course.</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-8">
+        Browse all available programs or search for your dream course.
+      </p>
 
-      <IntakeForm onSubmit={handleSubmit} loading={loading} countries={countriesList} courses={coursesList} />
+      <IntakeForm
+        onSubmit={handleSubmit}
+        loading={loading}
+        countries={countriesList}
+        courses={coursesList}
+      />
 
-      {error && <p className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800">{error}</p>}
+      {error && (
+        <p className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800">
+          {error}
+        </p>
+      )}
 
-      {loading && <p className="text-center py-10 text-gray-500">Analyzing 350+ programs...</p>}
+      {loading && (
+        <p className="text-center py-10 text-gray-500">Analyzing 350+ programs...</p>
+      )}
 
       {!loading && matches.length > 0 && (
-        <div className="mt-10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Your matches ({finalFiltered.length})</h2>
-          </div>
-
+        <div className="mt-10 space-y-12">
           <MatchFilters filters={filters} onChange={setFilters} />
 
-          {finalFiltered.length === 0 ? (
-            <div className="text-center py-16 text-gray-500">No matches for these filters. Try widening them.</div>
-          ) : (
-            <div className="space-y-4">
-              {finalFiltered.map((m) => (
-                <div key={m.id}>
-                  <MatchCard match={m} onApply={applyMatch} onSave={(mm) => setSaved((s) => new Set(s).add(mm.id))} />
-                  <div className="flex gap-3 mt-1 pl-1">
-                    {saved.has(m.id) && <p className="text-xs text-green-600">Saved ✓</p>}
-                    {applied.has(m.id) && <p className="text-xs text-blue-600">Application started ✓</p>}
+          {recommendedMatches.length > 0 && (
+            <section>
+              <div className="mb-6">
+                <span className="text-xs font-bold text-purple-600 bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400 px-3 py-1 rounded-full mb-2 inline-block">
+                  ✨ AI Recommended
+                </span>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  Recommended for you
+                </h2>
+                <p className="text-gray-500 mt-1">
+                  Based on your profile, grades, and preferred destinations.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {recommendedMatches.map((m) => (
+                  <div key={m.id}>
+                    <MatchCard match={m} onApply={applyMatch} onSave={(mm) => setSaved((s) => new Set(s).add(mm.id))} />
+                    <div className="flex gap-3 mt-1 pl-1">
+                      {saved.has(m.id) && <p className="text-xs text-green-600">Saved ✓</p>}
+                      {applied.has(m.id) && <p className="text-xs text-blue-600">Application started ✓</p>}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </section>
+          )}
+
+          {morePrograms.length > 0 && (
+            <section>
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  More programs you might like
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {morePrograms.map((m) => (
+                  <div key={m.id}>
+                    <MatchCard match={m} onApply={applyMatch} onSave={(mm) => setSaved((s) => new Set(s).add(mm.id))} />
+                    <div className="flex gap-3 mt-1 pl-1">
+                      {saved.has(m.id) && <p className="text-xs text-green-600">Saved ✓</p>}
+                      {applied.has(m.id) && <p className="text-xs text-blue-600">Application started ✓</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {finalFiltered.length === 0 && (
+            <div className="text-center py-16 text-gray-500">
+              No matches for these filters. Try widening them.
             </div>
           )}
         </div>
@@ -292,6 +351,6 @@ export function Matches() {
           }}
         />
       )}
-    </main>
+    </div>
   );
 }

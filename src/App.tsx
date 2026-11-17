@@ -6,8 +6,10 @@ import { Footer } from "./components/Footer";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Home } from "./pages/Home";
 import { Matches } from "./pages/Matches";
+import { ProgramDetails } from "./pages/ProgramDetails"; 
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
+import { Profile } from "./pages/Profile"; // NEW
 import { StudentDashboard } from "./pages/StudentDashboard";
 import { AgentDashboard } from "./pages/AgentDashboard";
 import { UniversityDashboard } from "./pages/UniversityDashboard";
@@ -22,8 +24,13 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/matches" element={<Matches />} />
+            <Route path="/program/:id" element={<ProgramDetails />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            
+            {/* NEW PROFILE ROUTE */}
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            
             <Route path="/dashboard/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
             <Route path="/dashboard/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
             <Route path="/dashboard/university" element={<ProtectedRoute><UniversityDashboard /></ProtectedRoute>} />

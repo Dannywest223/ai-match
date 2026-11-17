@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User, AlertCircle } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
 
 const links = [
   { to: "/dashboard/student", label: "I'm a Student" },
@@ -12,9 +13,30 @@ const links = [
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+
+  useEffect(() => {
+    async function checkProfile() {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from("student_profiles")
+        .select("first_name, last_name, date_of_birth")
+        .eq("id", user.id)
+        .single();
+      
+      // If profile doesn't exist OR essential fields are empty, mark it incomplete
+      if (!data || !data.first_name || !data.last_name || !data.date_of_birth) {
+        setProfileIncomplete(true);
+      } else {
+        setProfileIncomplete(false);
+      }
+    }
+    checkProfile();
+  }, [user, location.pathname]); // Re-check when user navigates
 
   async function handleLogout() {
     await signOut();
@@ -25,7 +47,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
         
-        {/* --- UPDATED LOGO SECTION --- */}
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2 font-bold text-lg" onClick={() => setOpen(false)}>
           <img 
             src="/logo.jpeg" 
@@ -35,6 +57,7 @@ export function Navbar() {
           Arrows
         </Link>
 
+        {/* Desktop Nav Links */}
         <nav className="hidden md:flex gap-6 text-sm">
           {links.map((l) => (
             <Link 
@@ -49,9 +72,33 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          
           {user ? (
             <>
-              <span className="hidden sm:inline text-xs text-gray-500">{user.email}</span>
+              {/* Profile Link / Complete Profile Button */}
+              <Link 
+                to="/profile" 
+                className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-full border transition-colors ${
+                  profileIncomplete 
+                    ? "bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100 font-medium" 
+                    : "border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                {profileIncomplete ? (
+                  <>
+                    <AlertCircle size={16} />
+                    Complete Profile
+                  </>
+                ) : (
+                  <>
+                    <User size={16} />
+                    Profile
+                  </>
+                )}
+              </Link>
+
+              <span className="hidden lg:inline text-xs text-gray-500">{user.email}</span>
+              
               <button 
                 onClick={handleLogout} 
                 className="text-sm px-4 py-2 rounded-full border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -67,6 +114,7 @@ export function Navbar() {
               Log in
             </Link>
           )}
+          
           <button 
             onClick={() => setOpen((o) => !o)} 
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" 
@@ -77,6 +125,7 @@ export function Navbar() {
         </div>
       </div>
 
+      {/* Mobile Nav */}
       {open && (
         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-6 py-4 space-y-3">
           {links.map((l) => (
@@ -89,13 +138,27 @@ export function Navbar() {
               {l.label}
             </Link>
           ))}
+          
           {user ? (
-            <button 
-              onClick={handleLogout} 
-              className="block w-full text-center text-sm py-2 rounded-full border border-gray-300 dark:border-gray-700"
-            >
-              Log out
-            </button>
+            <>
+              <Link 
+                to="/profile" 
+                onClick={() => setOpen(false)}
+                className={`flex items-center gap-2 text-sm py-2 ${
+                  profileIncomplete ? "text-orange-600 font-medium" : ""
+                }`}
+              >
+                {profileIncomplete ? <AlertCircle size={18} /> : <User size={18} />}
+                {profileIncomplete ? "Complete Your Profile" : "My Profile"}
+              </Link>
+              
+              <button 
+                onClick={handleLogout} 
+                className="block w-full text-center text-sm py-2 rounded-full border border-gray-300 dark:border-gray-700"
+              >
+                Log out
+              </button>
+            </>
           ) : (
             <Link 
               to="/login" 
